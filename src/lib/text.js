@@ -15,3 +15,5 @@ class Text {
         return html;
     }
 }
+
+module.exports = Text;
