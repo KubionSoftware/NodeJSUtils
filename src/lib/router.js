@@ -81,7 +81,7 @@ class Router {
 				}
 
 				if (matched) {
-					route.action(req, end, content, queryParams, ...parameters);
+					route.action(req, end, content, ...parameters, queryParams);
 					return;
 				}
 			}
