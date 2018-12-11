@@ -76,6 +76,7 @@ class Action {
 
 	constructor (data, condition) {
 		this.data = data;
+		this.conditionText = condition;
 
 		try {
 			this.condition = new Function("state, config", "with (state) {return " + (condition || "true") + "}");
@@ -116,7 +117,7 @@ class WaitAction extends Action {
 
 		instance.eventKey = data.outputKey;
 		instance.eventTypes = data.types;
-		return false;
+		return data;
 	}
 }
 
@@ -428,17 +429,17 @@ function parseData (data, state, config) {
 
 class Instance {
 
-	constructor (flow, environment, state, config, onEnd) {
-		this.flow = flow;
+	constructor (graph, environment, state, config, onEnd) {
+		this.graph = graph;
 		this.environment = environment;
 		this.state = state || {};
-		this.config = parseData(Object.assign(JSON.parse(JSON.stringify(flow.config || {})), config || {}), this.state, {});
+		this.config = parseData(Object.assign(JSON.parse(JSON.stringify(graph.config || {})), config || {}), this.state, {});
 		this.onEnd = onEnd;
 		this.running = false;
 	}
 
 	async start (data) {
-		this.activeNode = this.flow.getNodeById(this.flow.startNode);
+		this.activeNode = this.graph.getNodeById(this.graph.startNode);
 		this.actionIndex = 0;
 		this.running = true;
 		return await this.continue(data);
@@ -482,7 +483,14 @@ class Instance {
 
 			const action = this.activeNode.actions[this.actionIndex++];
 
-			if (action.condition(this.state, this.config)) {
+			let conditionResult = false;
+			try {
+				conditionResult = action.condition(this.state, this.config);
+			} catch (e) {
+				throw new Error("Error while evaluation condition in flow " + this.graph.code + ": '" + action.conditionText + "' - " + e.toString());
+			}
+
+			if (conditionResult) {
 				// Stop is the action returns false (indicating that the flow should wait for new data)
 				// or if the flow ended
 				const actionResult = await action.execute(this);
@@ -498,7 +506,7 @@ class Instance {
 	}
 
 	goto (nodeId) {
-		this.activeNode = this.flow.getNodeById(nodeId);
+		this.activeNode = this.graph.getNodeById(nodeId);
 		this.actionIndex = 0;
 	}
 
@@ -512,7 +520,7 @@ class Instance {
 		return {
 			state: this.state,
 			activeNode: this.activeNode,
-			code: this.flow.code
+			code: this.graph.code
 		};
 	}
 }
