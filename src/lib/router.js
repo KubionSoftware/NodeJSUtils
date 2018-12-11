@@ -15,9 +15,7 @@ class Router {
 
 	route (req, res) {
 		let status = 200;
-		let headers = {
-			"Access-Control-Allow-Origin": "*"
-		};
+		let headers = {};
 	
 		let mimeTypes = {
 			"": "application/json",
