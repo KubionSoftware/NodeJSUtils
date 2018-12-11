@@ -117,7 +117,7 @@ class WaitAction extends Action {
 
 		instance.eventKey = data.outputKey;
 		instance.eventTypes = data.types;
-		return false;
+		return data;
 	}
 }
 
