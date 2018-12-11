@@ -433,7 +433,7 @@ class Instance {
 		this.graph = graph;
 		this.environment = environment;
 		this.state = state || {};
-		this.config = parseData(Object.assign(JSON.parse(JSON.stringify(flow.config || {})), config || {}), this.state, {});
+		this.config = parseData(Object.assign(JSON.parse(JSON.stringify(graph.config || {})), config || {}), this.state, {});
 		this.onEnd = onEnd;
 		this.running = false;
 	}
