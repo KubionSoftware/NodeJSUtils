@@ -61,7 +61,7 @@ class Router {
 		});
 
 		req.on("end", () => {
-			const content = Buffer.concat(body).toString();
+			const content = Buffer.concat(body);
 
 			for (const route of this.routes) {
 				if (route.before) continue;
@@ -81,7 +81,7 @@ class Router {
 				}
 
 				if (matched) {
-					route.action(req, end, content, queryParams, ...parameters);
+					route.action(req, end, content.toString(route.format), ...parameters, queryParams);
 					return;
 				}
 			}
