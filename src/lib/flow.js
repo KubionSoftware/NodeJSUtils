@@ -222,6 +222,79 @@ class FormAction extends Action {
 	}
 }
 
+class TableAction extends Action {
+	constructor (data, condition) {
+		super(data, condition);
+	}
+
+	async execute (instance) {
+		const data = parseData(this.data, instance.state, instance.config);
+		const table = await instance.environment.getTable(data.name);
+
+		if (!instance.state._loop) {
+			instance.state._loop = true;
+			instance.state._columnIndex = 0;
+			instance.state._rowIndexes = table.rows.map((row, index) => index);
+		}
+
+		const filterRows = function (answer) {
+			instance.state._rowIndexes = instance.state._rowIndexes.filter(index => {
+				const answers = table.rows[index][column.code];
+				for (const i = 0; i < answers.length; i++) {
+					if (answers[i] == anser) return true;
+				}
+				return false;
+			});
+		}
+
+		for (instance.state._columnIndex; instance.state._columnIndex < table.columns.length; instance.state._columnIndex++) {
+			const column = table.columns[instance.state._columnIndex];
+
+			if (column.code in instance.state) {
+				filterRows(instance.state[column.code]);
+			} else {
+				if (column.type == "question") {
+					// Filter ansers for available rows
+					const answers = column.ansers.map(a => ({
+						value: a.code,
+						text: a.label
+					}));
+
+					return {
+						elements: [
+							{
+								type: "display",
+								data: {
+									text: column.description
+								}
+							},
+							{
+								type: "select",
+								data: {
+									outputKey: column.code,
+									list: answers
+								}
+							}
+						]
+					}
+				} else if (column.type == "condition") {
+					// TODO: RT
+				} else if (column.type == "setter") {
+					if (instance.state._rowIndexes.length != 1) {
+						// TODO: throw error
+					}
+
+					const row = table.rows[instance.state._rowIndexes[0]];
+
+					instance.state[column.code] = row[column.code];
+				}
+			}
+		}
+		
+		// return done;
+	}
+}
+
 class FlowAction extends Action {
 	constructor (data, condition) {
 		super(data, condition);
@@ -229,7 +302,7 @@ class FlowAction extends Action {
 
 	async execute (instance) {
 		const data = parseData(this.data, instance.state, instance.config);
-		let flow = (await instance.environment.getFlow(data.name)).tree;
+		const flow = await instance.environment.getFlow(data.name);
 		
 		instance.childFlow = new Instance(flow, instance.environment, data.stateObj || data.state, data.configObj || data.config, (childInstance, returnData) => {
 			if (data.outputKey) instance.state[data.outputKey] = returnData;
@@ -263,7 +336,8 @@ const actionMap = {
 	"wait": WaitAction,
 	"save": SaveAction,
 	"log": LogAction,
-	"flow": FlowAction
+	"flow": FlowAction,
+	"table": TableAction
 };
 
 class Node {
@@ -287,7 +361,9 @@ const templates = {
 	equal: "${value1} == ${value2}",
 	notEqual: "${value1} != ${value2}",
 	exists: "typeof ${value1} != \"undefined\"",
-	notExists: "typeof ${value1} == \"undefined\""
+	notExists: "typeof ${value1} == \"undefined\"",
+	match: "new RegExp(${value2}).test({value1})",
+	notMatch: "!(new RegExp(${value2}).test({value1}))"
 };
 
 class Graph {
@@ -371,6 +447,7 @@ class Environment {
 		this.sources["http"] = new HttpSource({host: ""});
 
 		this.flows = {};
+		this.tables = {};
 	}
 
 	setSource (name, source) {
@@ -394,6 +471,18 @@ class Environment {
 			Log.write("Flow with name '" + name + "' doesn't exist");
 		} else {
 			return this.flows[name];
+		}
+	}
+
+	setTable (name, table) {
+		this.tables[name] = table;
+	}
+
+	async getTable (name) {
+		if(!(name in this.tables)) {
+			Log.write("Table with name '" + name + "' doesn't exist");
+		} else {
+			return this.tables[name];
 		}
 	}
 }
@@ -481,13 +570,18 @@ class Instance {
 				throw new Error("No more actions");
 			}
 
-			const action = this.activeNode.actions[this.actionIndex++];
+			const action = this.activeNode.actions[this.actionIndex];
 
 			let conditionResult = false;
 			try {
 				conditionResult = action.condition(this.state, this.config);
 			} catch (e) {
 				throw new Error("Error while evaluation condition in flow " + this.graph.code + ": '" + action.conditionText + "' - " + e.toString());
+			}
+
+			// Go to the next action if we should not loop or if the condition was false
+			if (!this.state.loop || !conditionResult) {
+				this.actionIndex++;
 			}
 
 			if (conditionResult) {
