@@ -2,7 +2,7 @@ var IO = require("./io.js");
 
 class Log {
 
-	static write (o) {
+	static async write (o) {
 		const type = typeof o;
 		let text = "";
 
@@ -14,7 +14,7 @@ class Log {
 			text = o.toString();
 		}
 
-		IO.appendText("log.txt", (new Date().toString()) + ": " + text + "\n").catch(console.log);
+		await IO.appendText("log.txt", (new Date().toString()) + ": " + text + "\n");
 		console.log(text);
 	}
 }
