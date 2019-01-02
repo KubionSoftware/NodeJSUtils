@@ -34,6 +34,11 @@ class Router {
 			res.end(str);
 		}
 
+		if (req.method == "OPTIONS") {
+			headers = this.optionHeaders || {};
+			end("");
+		}
+
 		// Determine the path by discarding the query (after ?) and splitting on slashes, then remove all empty parts
 		const url = this.hosts.reduce((a, v) => a.replace(v, ""), req.url);
 		const urlParts = url.split("?");	
