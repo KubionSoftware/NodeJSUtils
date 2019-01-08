@@ -7,6 +7,7 @@ class Router {
 		this.routes = options.routes || [];
 		this.hosts = options.hosts || [];
 		this.hostFolder = options.hostFolder || "";
+		this.optionHeaders = options.optionHeaders || {};
 
 		for (const route of this.routes) {
 			route.path = route.path.split("/").filter(p => p.length > 0);
@@ -35,8 +36,9 @@ class Router {
 		}
 
 		if (req.method == "OPTIONS") {
-			headers = this.optionHeaders || {};
+			headers = this.optionHeaders;
 			end("");
+			return;
 		}
 
 		// Determine the path by discarding the query (after ?) and splitting on slashes, then remove all empty parts

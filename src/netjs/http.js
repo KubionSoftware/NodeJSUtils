@@ -13,7 +13,9 @@ class HTTP {
 			const isSecure = link.startsWith("https");
 
 			const headers = options.headers || {};
-			headers["Content-Length"] = "content" in options ? options.content.length : 0;
+
+			const contentBuffer = Buffer.from(options.content || "", "utf8");
+			headers["Content-Length"] = contentBuffer.length;
 
 			if (parsedUrl.auth) {
 				headers["Authorization"] = "Basic " + new Buffer(parsedUrl.auth).toString("base64");
@@ -93,7 +95,7 @@ class HTTP {
 				reject(error);
 			});
 			
-			if ("content" in options) req.write(options.content);
+			if ("content" in options) req.write(contentBuffer);
 	
 			req.end();
 		});
