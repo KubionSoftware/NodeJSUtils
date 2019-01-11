@@ -14,6 +14,33 @@ class Router {
 		}
 	}
 
+	match (path, content, queryParams, req, end, before) {
+		for (const route of this.routes) {
+			if (route.before != before) continue;
+
+			const parameters = [];
+			let matched = true;
+
+			for (let i = 0; i < route.path.length; i++) {
+				if (route.path[i].startsWith("{")) {
+					parameters.push(path[i]);
+				} else {
+					if (path[i] != route.path[i]) {
+						matched = false;
+						break;
+					}
+				}
+			}
+
+			if (matched) {
+				route.action(req, end, content ? content.toString(route.format) : undefined, ...parameters, queryParams);
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	route (req, res) {
 		let status = 200;
 		let headers = {};
@@ -57,6 +84,8 @@ class Router {
 			}
 		}
 
+		if (this.match(path, undefined, queryParams, req, end, true)) return;
+
 		req.on("error", error => {
 			Log.write(error);
 		});
@@ -70,28 +99,7 @@ class Router {
 		req.on("end", () => {
 			const content = Buffer.concat(body);
 
-			for (const route of this.routes) {
-				if (route.before) continue;
-
-				const parameters = [];
-				let matched = true;
-
-				for (let i = 0; i < route.path.length; i++) {
-					if (route.path[i].startsWith("{")) {
-						parameters.push(path[i]);
-					} else {
-						if (path[i] != route.path[i]) {
-							matched = false;
-							break;
-						}
-					}
-				}
-
-				if (matched) {
-					route.action(req, end, content.toString(route.format), ...parameters, queryParams);
-					return;
-				}
-			}
+			if (this.match(path, content, queryParams, req, end, false)) return;
 
 			if (this.hostFolder) {
 				if (path.length == 0) path.push("index.html");

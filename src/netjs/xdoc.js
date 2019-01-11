@@ -1,5 +1,4 @@
 const edge = require('edge-js');
-const createXDoc = edge.func({ assemblyFile: './bin/XDocServices.dll', typeName: 'XDocServices.XDocServiceFactory', methodName: 'CreateXDoc' });
 
 class XDoc {
 	//	var xDoc = new xdoc({ AppCache: 1, SVCache: 1});
@@ -7,11 +6,13 @@ class XDoc {
 
 	constructor(options) {
 		options = options || {};
-		this._xDocRun = createXDoc(options, true);	
+		
+		const createXDoc = edge.func({ assemblyFile: './bin/XDocServices.dll', typeName: 'XDocServices.XDocServiceFactory', methodName: 'CreateXDoc' });
+		this.xDocRun = createXDoc(options, true);	
 	}
 
 	run(template, cb) {
-		this._xDocRun(template, (error, result) => cb(error, result));
+		this.xDocRun(template, (error, result) => cb(error, result));
 	}
 
 }

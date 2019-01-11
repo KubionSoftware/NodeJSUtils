@@ -1,6 +1,8 @@
 const http = require('http');
 const formidable = require('formidable');
 const WebSocket = require("./websocket.js");
+const Random = require("../lib/random.js");
+const IO = require("./io.js");
 
 class Server {
 
