@@ -344,6 +344,7 @@ class Node {
 
 	constructor (data) {
 		this.id = data.id;
+		this.label = data.label;
 
 		this.actions = [];
 		for (const action of data.actions) {
@@ -539,6 +540,10 @@ class Instance {
 		if (this.onEnd) this.onEnd(this, data);
 	}
 
+	debugError (e, message) {
+		return new Error((message || "Error") + " in flow " + this.graph.code + " at step " + this.activeNode.label + " at element " + this.actionIndex + ": " + e.toString());
+	}
+
 	async continue (data) {
 		if (!this.running) return;
 
@@ -563,11 +568,11 @@ class Instance {
 
 		for (let iteration = 0; ; iteration++) {
 			if (iteration > 100) {
-				throw new Error("Exceeded maximum number of iterations");
+				throw this.debugError(new Error("Exceeded maximum number of iterations"));
 			}
 			
 			if (this.actionIndex >= this.activeNode.actions.length) {
-				throw new Error("No more actions");
+				throw this.debugError(new Error("No more actions"));
 			}
 
 			const action = this.activeNode.actions[this.actionIndex];
@@ -576,7 +581,7 @@ class Instance {
 			try {
 				conditionResult = action.condition(this.state, this.config);
 			} catch (e) {
-				throw new Error("Error while evaluation condition in flow " + this.graph.code + ": '" + action.conditionText + "' - " + e.toString());
+				throw this.debugError(e, "Error while evaluation condition '" + action.conditionText + "'");
 			}
 
 			// Go to the next action if we should not loop or if the condition was false
@@ -587,9 +592,13 @@ class Instance {
 			if (conditionResult) {
 				// Stop is the action returns false (indicating that the flow should wait for new data)
 				// or if the flow ended
-				const actionResult = await action.execute(this);
-				if (actionResult || !this.running) {
-					return actionResult;
+				try {
+					const actionResult = await action.execute(this);
+					if (actionResult || !this.running) {
+						return actionResult;
+					}
+				} catch (e) {
+					throw this.debugError(e, "Error while executing action");
 				}
 			}
 		}
