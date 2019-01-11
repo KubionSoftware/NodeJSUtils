@@ -13,6 +13,7 @@ const Log = require("./src/netjs/log.js");
 const MongoDB = require("./src/netjs/mongodb.js");
 const Server = require("./src/netjs/server.js");
 const WebSocket = require("./src/netjs/websocket.js");
+const XDoc = require("./src/netjs/xdoc.js");
 
 module.exports = {
 	Flow,
@@ -29,5 +30,6 @@ module.exports = {
 	Log,
 	MongoDB,
 	Server,
-	WebSocket
+	WebSocket,
+	XDoc
 };
