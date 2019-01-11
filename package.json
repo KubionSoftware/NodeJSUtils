@@ -11,6 +11,7 @@
     "url": "git+https://github.com/KubionSoftware/NodeJSUtils.git"
   },
   "dependencies": {
+    "edge-js": "^11.3.0",
     "follow-redirects": "^1.5.9",
     "formidable": "^1.2.1",
     "mongodb": "^3.1.10",
