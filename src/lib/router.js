@@ -16,7 +16,7 @@ class Router {
 
 	match (path, content, queryParams, req, end, before) {
 		for (const route of this.routes) {
-			if (route.before != before) continue;
+			if (!!route.before != before) continue;
 
 			const parameters = [];
 			let matched = true;

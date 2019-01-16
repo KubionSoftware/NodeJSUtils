@@ -79,9 +79,8 @@ class Action {
 		this.conditionText = condition;
 
 		try {
-			this.condition = new Function("state, config", "with (state) {return " + (condition || "true") + "}");
+			this.condition = new Function("state, config", "with (config) { with (state) {return " + (condition || "true") + "}}");
 		} catch (e) {
-			Log.write("Invalid condition: " + condition);
 			this.condition = new Function("state, config", "return true");
 		}
 	}
@@ -160,7 +159,7 @@ class ExecAction extends Action {
 	}
 
 	async execute (instance) {
-		const func = new Function("state, config", "with (state) {" + this.data.join(";") + "}");
+		const func = new Function("state, config", "with (config) { with (state) {" + this.data.join(";") + "}}");
 		func(instance.state, instance.config);
 		return false;
 	}
@@ -235,63 +234,75 @@ class TableAction extends Action {
 			instance.state._loop = true;
 			instance.state._columnIndex = 0;
 			instance.state._rowIndexes = table.rows.map((row, index) => index);
-		}
+        }
 
-		const filterRows = function (answer) {
-			instance.state._rowIndexes = instance.state._rowIndexes.filter(index => {
+		const filterRows = function (column, answer) {
+			return instance.state._rowIndexes.filter(index => {
 				const answers = table.rows[index][column.code];
-				for (const i = 0; i < answers.length; i++) {
-					if (answers[i] == anser) return true;
+				for (let i = 0; i < answers.length; i++) {
+					if (answers[i] == answer) return true;
 				}
 				return false;
 			});
 		}
 
 		for (instance.state._columnIndex; instance.state._columnIndex < table.columns.length; instance.state._columnIndex++) {
-			const column = table.columns[instance.state._columnIndex];
+            const column = table.columns[instance.state._columnIndex];
 
-			if (column.code in instance.state) {
-				filterRows(instance.state[column.code]);
-			} else {
-				if (column.type == "question") {
-					// Filter ansers for available rows
-					const answers = column.ansers.map(a => ({
-						value: a.code,
-						text: a.label
-					}));
+			if (column.code in instance.state || column.type == "condition") {
+                let filteredRows = filterRows(column, instance.state[column.code]);
 
-					return {
-						elements: [
-							{
-								type: "display",
-								data: {
-									text: column.description
-								}
-							},
-							{
-								type: "select",
-								data: {
-									outputKey: column.code,
-									list: answers
-								}
-							}
-						]
-					}
-				} else if (column.type == "condition") {
-					// TODO: RT
-				} else if (column.type == "setter") {
-					if (instance.state._rowIndexes.length != 1) {
-						// TODO: throw error
-					}
+                // If no row with answer then rows without answers
+                if (column.type == "condition" && filteredRows.length == 0) {
+                    filteredRows = instance.state._rowIndexes.filter(index => {
+                        table.rows[index][column.code].length == 0;
+                    });
+                }
 
-					const row = table.rows[instance.state._rowIndexes[0]];
+                instance.state._rowIndexes = filteredRows;
+			} else if (column.type == "question") {
+                // Filter answers for available rows
+                const possibilities = {};
+                instance.state._rowIndexes.forEach(index => table.rows[index][column.code].forEach(possibility => {
+                    possibilities[possibility] = true;
+                }));
 
-					instance.state[column.code] = row[column.code];
-				}
-			}
+                const answers = column.answers.filter(answer => answer.code in possibilities).map(answer => ({
+                    value: answer.code,
+                    text: answer.label
+                }));
+
+                if (answers.length == 0) continue;
+
+                return {
+                    elements: [
+                        {
+                            type: "display",
+                            data: {
+                                text: column.description
+                            }
+                        },
+                        {
+                            type: "select",
+                            data: {
+                                outputKey: column.code,
+                                list: answers
+                            }
+                        }
+                    ]
+                };
+            } else if (column.type == "setter") {
+                if (instance.state._rowIndexes.length != 1) {
+                    // TODO: throw error
+                } else {
+                    const row = table.rows[instance.state._rowIndexes[0]];
+                    instance.state[column.code] = row[column.code];
+                }
+            }
 		}
-		
-		// return done;
+        
+        instance.state._loop = false;
+		return false;
 	}
 }
 
@@ -363,28 +374,24 @@ const templates = {
 	notEqual: "${value1} != ${value2}",
 	exists: "typeof ${value1} != \"undefined\"",
 	notExists: "typeof ${value1} == \"undefined\"",
-	match: "new RegExp(${value2}).test({value1})",
-	notMatch: "!(new RegExp(${value2}).test({value1}))"
+	match: "new RegExp(${value2}).test(${value1} || '')",
+	notMatch: "!(new RegExp(${value2}).test(${value1} || ''))"
 };
 
 class Graph {
 
 	constructor (data, code) {
-		// Convert config to object
-		this.config = Array.isArray(data.config) ? data.config.reduce((a, v) => {
-			if (v.value) a[v.key] = v.value;
-			else if (v.$value) a["$" + v.key] = v.$value;
-			return a;
-		}, {}) : data.config;
-
 		const reduceKeyValue = function (array) {
 			const obj = array.reduce((a, v) => {
-				if (v.value) a[v.key] = v.value;
-				else if (v.$value) a["$" + v.key] = v.$value;
+				if (typeof v.value != "undefined") a[v.key] = v.value;
+				else if (typeof v.$value != "undefined") a["$" + v.key] = v.$value;
 				return a;
 			}, {});
 			return obj;
-		}
+        }
+        
+        // Convert config to object
+        this.config = Array.isArray(data.config) ? reduceKeyValue(data.config) : data.config;
 
 		for (let node of data.nodes) {
 			// Convert node 'set' to object
@@ -504,7 +511,7 @@ function parseData (data, state, config) {
 
 		for (const key in data) {
 			if (key.startsWith("$")) {
-				const func = new Function("state, config", "with (state) { return " + data[key] + "}");
+				const func = new Function("state, config", "with (config) { with (state) { return " + data[key] + "}}");
 				result[key.substr(1)] = func(state, config);
 			} else {
 				result[key] = recursiveParse(data[key]);
@@ -522,10 +529,11 @@ class Instance {
 	constructor (graph, environment, state, config, onEnd) {
 		this.graph = graph;
 		this.environment = environment;
-		this.state = state || {};
+        this.state = state || {};
 		this.config = parseData(Object.assign(JSON.parse(JSON.stringify(graph.config || {})), config || {}), this.state, {});
 		this.onEnd = onEnd;
 		this.running = false;
+		this.trace = [graph.startNode];
 	}
 
 	async start (data) {
@@ -575,32 +583,34 @@ class Instance {
 				throw this.debugError(new Error("No more actions"));
 			}
 
-			const action = this.activeNode.actions[this.actionIndex];
+            const action = this.activeNode.actions[this.actionIndex];
 
 			let conditionResult = false;
 			try {
 				conditionResult = action.condition(this.state, this.config);
 			} catch (e) {
-				throw this.debugError(e, "Error while evaluation condition '" + action.conditionText + "'");
-			}
-
-			// Go to the next action if we should not loop or if the condition was false
-			if (!this.state.loop || !conditionResult) {
-				this.actionIndex++;
+				throw this.debugError(e, "Error while evaluation condition '" + action.conditionText + "'" + JSON.stringify(this.config));
 			}
 
 			if (conditionResult) {
 				// Stop is the action returns false (indicating that the flow should wait for new data)
 				// or if the flow ended
 				try {
-					const actionResult = await action.execute(this);
+                    const actionResult = await action.execute(this);
+                    
+                    if (!this.state._loop && !(action instanceof TransitionAction)) {
+                        this.actionIndex++;
+                    }
+
 					if (actionResult || !this.running) {
 						return actionResult;
 					}
 				} catch (e) {
 					throw this.debugError(e, "Error while executing action");
 				}
-			}
+			} else {
+                this.actionIndex++;
+            }
 		}
 	}
 
@@ -611,6 +621,7 @@ class Instance {
 	goto (nodeId) {
 		this.activeNode = this.graph.getNodeById(nodeId);
 		this.actionIndex = 0;
+		this.trace.push(nodeId);
 	}
 
 	set (key, value) {
@@ -623,7 +634,8 @@ class Instance {
 		return {
 			state: this.state,
 			activeNode: this.activeNode,
-			code: this.graph.code
+			code: this.graph.code,
+			trace: this.trace
 		};
 	}
 }
