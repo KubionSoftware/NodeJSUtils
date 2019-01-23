@@ -12,14 +12,14 @@ class Obj {
         }
 
         // Optional: support for some standard constructors (extend as desired)
-        if (obj instanceof Map) Array.from(obj, ([key, val]) => result.set(Obj.deepClone(key, hash), Obj.deepClone(val, hash)));
-        else if (obj instanceof Set) Array.from(obj, (key) => result.add(Obj.deepClone(key, hash)));
+        if (obj instanceof Map) Array.from(obj, ([key, val]) => result.set(Obj.clone(key, hash), Obj.clone(val, hash)));
+        else if (obj instanceof Set) Array.from(obj, (key) => result.add(Obj.clone(key, hash)));
 
         // Register in hash    
         hash.set(obj, result);
 
         // Clone and assign enumerable own properties recursively
-        return Object.assign(result, ...Object.keys(obj).map(key => ({ [key]: Obj.deepClone(obj[key], hash) })));
+        return Object.assign(result, ...Object.keys(obj).map(key => ({ [key]: Obj.clone(obj[key], hash) })));
     }
 
     static deepSet (obj, path, newValue, oldValue, set, remove) {
