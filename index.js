@@ -1,6 +1,8 @@
 const Flow = require("./src/lib/flow.js");
+const Format = require("./src/lib/format.js");
 const FormData = require("./src/lib/form_data.js");
 const NLP = require("./src/lib/nlp.js");
+const Obj = require("./src/lib/obj.js");
 const Random = require("./src/lib/random.js");
 const Router = require("./src/lib/router.js");
 const Stemmer = require("./src/lib/stemmer.js");
@@ -17,8 +19,10 @@ const XDoc = require("./src/netjs/xdoc.js");
 
 module.exports = {
 	Flow,
+	Format,
 	FormData,
 	NLP,
+	Obj,
 	Random,
 	Router,
 	Stemmer,

@@ -1,5 +1,6 @@
 const HTTP = require("../netjs/http.js");
 const Log = require("../netjs/log.js");
+const Obj = require("./obj.js");
 
 class Source {
 
@@ -86,7 +87,7 @@ class Action {
 	}
 
 	// abstract method
-	async execute (instance) {
+	async execute (instance, requestData) {
 		throw new Error("Class doesn't implement method Action.execute");
 	}
 }
@@ -97,7 +98,7 @@ class LogAction extends Action {
 		super(data, condition);
 	}
 
-	async execute (instance) {
+	async execute (instance, requestData) {
 		const data = parseData(this.data, instance.state, instance.config);
 
 		Log.write(data.message);
@@ -111,7 +112,7 @@ class WaitAction extends Action {
 		super(data, condition);
 	}
 
-	async execute (instance) {
+	async execute (instance, requestData) {
 		const data = parseData(this.data, instance.state, instance.config);
 
 		instance.eventKey = data.outputKey;
@@ -126,7 +127,7 @@ class SetAction extends Action {
 		super(data, condition);
 	}
 
-	async execute (instance) {
+	async execute (instance, requestData) {
 		const data = parseData(this.data, instance.state, instance.config);
 
 		try {
@@ -158,7 +159,7 @@ class ExecAction extends Action {
 		super(data, condition);
 	}
 
-	async execute (instance) {
+	async execute (instance, requestData) {
 		const func = new Function("state, config", "with (config) { with (state) {" + this.data.join(";") + "}}");
 		func(instance.state, instance.config);
 		return false;
@@ -171,7 +172,7 @@ class LoadAction extends Action {
 		super(data, condition);
 	}
 
-	async execute (instance) {
+	async execute (instance, requestData) {
 		const data = parseData(this.data, instance.state, instance.config);
 
 		const result = await instance.environment.getSource(data.source).load(data.query, instance.state);
@@ -186,7 +187,7 @@ class SaveAction extends Action {
 		super(data, condition);
 	}
 
-	async execute (instance) {
+	async execute (instance, requestData) {
 		const data = parseData(this.data, instance.state, instance.config);
 
 		const result = await instance.environment.getSource(data.source).save(data.query, data.content, instance.state);
@@ -201,7 +202,7 @@ class TransitionAction extends Action {
 		super(data, condition);
 	}
 
-	async execute (instance) {
+	async execute (instance, requestData) {
 		const data = parseData(this.data, instance.state, instance.config);
 
 		instance.goto(data.nodeId);
@@ -215,7 +216,7 @@ class FormAction extends Action {
 		super(data, condition);
 	}
 
-	async execute (instance) {
+	async execute (instance, requestData) {
 		const data = parseData(this.data, instance.state, instance.config);
 		return data;
 	}
@@ -226,13 +227,14 @@ class TableAction extends Action {
 		super(data, condition);
 	}
 
-	async execute (instance) {
+	async execute (instance, requestData) {
 		const data = parseData(this.data, instance.state, instance.config);
 		const table = await instance.environment.getTable(data.name);
 
 		if (!instance.state._loop) {
 			instance.state._loop = true;
 			instance.state._columnIndex = 0;
+			instance.state._askedColumnCodes = [];
 			instance.state._rowIndexes = table.rows.map((row, index) => index);
         }
 
@@ -244,6 +246,28 @@ class TableAction extends Action {
 				}
 				return false;
 			});
+		}
+
+		// Check if the answered question was already answered before
+		// If so change the answer and remove all answers given after that question
+		const answeredKeys = Object.keys(requestData);
+		if (answeredKeys.length == 1 && table.columns.some(c => c.code == answeredKeys[0])) {
+			const answerIndex = instance.state._askedColumnCodes.findIndex(c => c == answeredKeys[0]);
+			if (answerIndex != -1 && answerIndex != instance.state._askedColumnCodes.length - 1) {
+				for (let i = answerIndex + 1; i < instance.state._askedColumnCodes.length; i++) {
+					delete instance.state[instance.state._askedColumnCodes[i]];
+				}
+
+				instance.state._askedColumnCodes = instance.state._askedColumnCodes.slice(0, answerIndex + 1);
+				instance.state._columnIndex = table.columns.findIndex(c => c.code == instance.state._askedColumnCodes[answerIndex]) + 1;
+
+				instance.state._rowIndexes = table.rows.map((row, index) => index);
+
+				for (let i = 0; i < instance.state._columnIndex; i++) {
+					const column = table.columns[i];
+					instance.state._rowIndexes = filterRows(column, instance.state[column.code]);
+				}
+			}
 		}
 
 		for (instance.state._columnIndex; instance.state._columnIndex < table.columns.length; instance.state._columnIndex++) {
@@ -272,9 +296,12 @@ class TableAction extends Action {
                     text: answer.label
                 }));
 
-                if (answers.length == 0) continue;
+				if (answers.length == 0) continue;
+				
+				instance.state._askedColumnCodes.push(column.code);
 
                 return {
+					decisionTree: true,
                     elements: [
                         {
                             type: "display",
@@ -301,7 +328,10 @@ class TableAction extends Action {
             }
 		}
         
-        instance.state._loop = false;
+		instance.state._loop = false;
+		delete instance.state._columnIndex;
+		delete instance.state._askedColumnCodes;
+		delete instance.state._rowIndexes;
 		return false;
 	}
 }
@@ -311,7 +341,7 @@ class FlowAction extends Action {
 		super(data, condition);
 	}
 
-	async execute (instance) {
+	async execute (instance, requestData) {
 		const data = parseData(this.data, instance.state, instance.config);
 		const flow = await instance.environment.getFlow(data.name);
 		
@@ -330,7 +360,7 @@ class EndAction extends Action {
 		super(data, condition);
 	}
 
-	async execute (instance) {
+	async execute (instance, requestData) {
 		const data = parseData(this.data || {}, instance.state, instance.config);
 		instance.end(data.output);
 		return false;
@@ -533,6 +563,7 @@ class Instance {
 		this.config = parseData(Object.assign(JSON.parse(JSON.stringify(graph.config || {})), config || {}), this.state, {});
 		this.onEnd = onEnd;
 		this.running = false;
+		this.snapshots = [];
 		this.trace = [graph.startNode];
 	}
 
@@ -554,6 +585,8 @@ class Instance {
 
 	async continue (data) {
 		if (!this.running) return;
+
+		this.createSnapshot(data);
 
 		if (this.childFlow) {
 			const childResult = await this.childFlow.continue(data);
@@ -596,7 +629,7 @@ class Instance {
 				// Stop is the action returns false (indicating that the flow should wait for new data)
 				// or if the flow ended
 				try {
-                    const actionResult = await action.execute(this);
+					const actionResult = await action.execute(this, data);
                     
                     if (!this.state._loop && !(action instanceof TransitionAction)) {
                         this.actionIndex++;
@@ -618,6 +651,15 @@ class Instance {
 		await this.continue(data);
 	}
 
+	createSnapshot (data) {
+		this.snapshots.push({
+			nodeId: this.activeNode.id,
+			actionIndex: this.actionIndex,
+			state: Obj.clone(this.state),
+			data: data
+		});
+	}
+
 	goto (nodeId) {
 		this.activeNode = this.graph.getNodeById(nodeId);
 		this.actionIndex = 0;
@@ -626,6 +668,18 @@ class Instance {
 
 	set (key, value) {
 		this.state[key] = value;
+	}
+
+	async back () {
+		if (this.snapshots.length < 2) return;
+
+		const snapshot = this.snapshots.splice(-2, 2)[0];
+
+		this.activeNode = this.graph.getNodeById(snapshot.nodeId);
+		this.actionIndex = snapshot.actionIndex;
+		this.state = snapshot.state;
+
+		return await this.continue(snapshot.data);
 	}
 
 	getDebug () {
