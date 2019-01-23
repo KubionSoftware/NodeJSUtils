@@ -656,7 +656,8 @@ class Instance {
 			nodeId: this.activeNode.id,
 			actionIndex: this.actionIndex,
 			state: Obj.clone(this.state),
-			data: data
+			data: data,
+			running: this.running
 		});
 	}
 
@@ -678,6 +679,7 @@ class Instance {
 		this.activeNode = this.graph.getNodeById(snapshot.nodeId);
 		this.actionIndex = snapshot.actionIndex;
 		this.state = snapshot.state;
+		this.running = snapshot.running;
 
 		return await this.continue(snapshot.data);
 	}
