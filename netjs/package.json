@@ -1,0 +1,27 @@
+{
+  "name": "kubion-netjs",
+  "version": "1.1.23",
+  "description": "NodeJS utilities used by Kubion",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KubionSoftware/NodeJSUtils.git"
+  },
+  "dependencies": {
+    "edge-js": "^11.3.0",
+    "follow-redirects": "^1.6.1",
+    "formidable": "^1.2.1",
+    "kubion-netjs-utils": "^1.0.3",
+    "mongodb": "^3.1.13",
+    "ws": "^6.1.3"
+  },
+  "author": "Bouke Stam",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/KubionSoftware/NodeJSUtils/issues"
+  },
+  "homepage": "https://github.com/KubionSoftware/NodeJSUtils#readme"
+}
