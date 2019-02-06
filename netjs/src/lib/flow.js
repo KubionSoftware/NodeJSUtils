@@ -562,13 +562,14 @@ function parseData (data, state, config) {
 
 class Instance {
 
-	constructor (graph, environment, state, config, onEnd) {
+	constructor (graph, environment, state = {}, config = {}, onEnd = undefined, takeSnapshots = true) {
 		this.graph = graph;
 		this.environment = environment;
         this.state = state || {};
 		this.config = parseData(Object.assign(JSON.parse(JSON.stringify(graph.config || {})), config || {}), this.state, {});
 		this.onEnd = onEnd;
 		this.running = false;
+		this.takeSnapshots = takeSnapshots;
 		this.snapshots = [];
 		this.trace = [graph.startNode];
 	}
@@ -598,7 +599,7 @@ class Instance {
 	async continue (data) {
 		if (!this.running) return;
 
-		this.createSnapshot(data);
+		if (this.takeSnapshots) this.createSnapshot(data);
 
 		if (this.childFlow) {
 			const childResult = await this.childFlow.continue(data);
