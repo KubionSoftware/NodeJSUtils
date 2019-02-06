@@ -11,15 +11,19 @@ class Obj {
             result = Object.create(Object.getPrototypeOf(obj));
         }
 
-        // Optional: support for some standard constructors (extend as desired)
-        if (obj instanceof Map) Array.from(obj, ([key, val]) => result.set(Obj.clone(key, hash), Obj.clone(val, hash)));
-        else if (obj instanceof Set) Array.from(obj, (key) => result.add(Obj.clone(key, hash)));
-
         // Register in hash    
         hash.set(obj, result);
 
-        // Clone and assign enumerable own properties recursively
-        return Object.assign(result, ...Object.keys(obj).map(key => ({ [key]: Obj.clone(obj[key], hash) })));
+        // Optional: support for some standard constructors (extend as desired)
+        if (obj instanceof Map && result instanceof Map) {
+            for (const entry of obj) result.set(entry[0], Obj.clone(entry[1], hash));
+        } else if (obj instanceof Set && result instanceof Set) {
+            for (const value of obj) result.add(Obj.clone(value, hash));
+        } else {
+            for (const key in obj) result[key] = Obj.clone(obj[key], hash);
+        }
+
+        return result;
     }
 
     static deepSet (obj, path, newValue, oldValue, set, remove) {

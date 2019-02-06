@@ -1,328 +1,269 @@
-const vowels = "aeiouèy";
-const DEBUG = false;
-
 function isVowel(x) {
-    return vowels.indexOf(x) > -1;
+  return x == "e" || x == "a" || x == "o" || x == "i" || x == "u" || x == "y";
 }
 
 
 // * Return longest matching suffixes for a token or '' if no suffix match
-String.prototype.endsinArr = function(suffixes) {
-  var i, longest = '';
-  for (i = 0; i < suffixes.length; i++) {
-    if (this.endsin(suffixes[i]) && suffixes[i].length > longest.length)
-      longest = suffixes[i];
-  }
+const endsinArr = function(s, suffixes) {
+var i, longest = '';
+for (i = 0; i < suffixes.length; i++) {
+  if (endsin(s, suffixes[i]) && suffixes[i].length > longest.length)
+    longest = suffixes[i];
+}
 
-  if (DEBUG && longest != "") {
-    console.log("Matched suffix: " + longest);
-  }
-  return longest;
+return longest;
 };
-  
+
 
 // Returns true if token has suffix
-String.prototype.endsin = function(suffix) {
-  if (this.length < suffix.length) return false;
-  return (this.slice(-suffix.length) == suffix);
+const endsin = function(s, suffix) {
+if (s.length < suffix.length) return false;
+for (let i = 0; i < suffix.length; i++) {
+    if (s[s.length - (suffix.length - i)] != suffix[i]) return false;
+}
+return true;
 };
 
 
 // Removes a suffix of len characters and returns the string
-String.prototype.removeSuffix = function(len) {
-  return this.substr(0, this.length - len);
+const removeSuffix = function(s, len) {
+return s.substr(0, s.length - len);
 };
 
 
 // Define undoubling the ending as removing the last letter if the word ends kk, dd or tt.
-String.prototype.undoubleEnding = function() {
-  if (this.substr(-2) == "kk" || this.substr(-2) == "tt" || this.substr(-2) == "dd") {
-      return this.substr(0, this.length - 1);
-  }
-  else {
-    return this;
-  }
+const undoubleEnding = function(s) {
+if (endsin(s, "kk") || endsin(s, "tt") || endsin(s, "dd")) {
+    return s.substr(0, s.length - 1);
+}
+else {
+  return s;
+}
 }
 
 
 class PorterStemmer {
-  constructor() {
+constructor() {
+}
+
+replaceAccentedCharacters(word) {
+  var accentedCharactersMapping = {
+    "ä": "a",
+    "ë": "e",
+    "ï": "i",
+    "ö": "o",
+    "ü": "u",
+    "á": "a",
+    "é": "e",
+    "í": "i",
+    "ó": "o",
+    "ú": "u"
+  }
+  var result = word;
+  for (var x in accentedCharactersMapping) {
+    result = result.replace(new RegExp(x, "g"), accentedCharactersMapping[x]);
   }
 
-  replaceAccentedCharacters(word) {
-    var accentedCharactersMapping = {
-      "ä": "a",
-      "ë": "e",
-      "ï": "i",
-      "ö": "o",
-      "ü": "u",
-      "á": "a",
-      "é": "e",
-      "í": "i",
-      "ó": "o",
-      "ú": "u"
+  return result;
+}
+
+// Determines R1 and R2; adapted from the French Porter Stemmer
+markRegions(token) {
+  var r1, r2, len;
+
+  r1 = r2 = len = token.length;
+
+  // R1 is the region after the first non-vowel following a vowel,
+  for (var i = 0; i < len - 1 && r1 == len; i++) {
+    if (isVowel(token[i]) && !isVowel(token[i + 1])) {
+      r1 = i + 2;
     }
-    var result = word;
-    for (var x in accentedCharactersMapping) {
-      result = result.replace(new RegExp(x, "g"), accentedCharactersMapping[x]);
-    }
-    if (DEBUG) {
-      console.log("replaceAccentedCharacters: " + result);
-    }
-    return result;
   }
+  // Or is the null region at the end of the word if there is no such non-vowel.
 
-
-  //Put initial y, y after a vowel, and i between vowels into upper case.
-  handleYI(word) {
-    // Initial y
-    var result = word.replace(/^y/, "Y");
-    if (DEBUG) {
-      console.log("handleYI: initial y: " + result);
-    }
-    // y after vowel
-   result = result.replace(/([aeioué])y/g, "$1Y");
-    if (DEBUG) {
-      console.log("handleYI: y after vowel: " + result);
-    }
-    // i between vowels
-    var result = result.replace(/([aeioué])i([aeioué])/g, "$1I$2");
-    if (DEBUG) {
-      console.log("handleYI: i between vowels:" + result);
-    }
-    return result;
-  }
-
-
-  // Determines R1 and R2; adapted from the French Porter Stemmer
-  markRegions(token) {
-    var r1, r2, len;
-
-    r1 = r2 = len = token.length;
-
-    // R1 is the region after the first non-vowel following a vowel,
-    for (var i = 0; i < len - 1 && r1 == len; i++) {
-      if (isVowel(token[i]) && !isVowel(token[i + 1])) {
-        r1 = i + 2;
+  // R1 is adjusted such that the region before it contains at least 3 characters
+  if (r1 != len) {
+    // R1 is not null
+    if (r1 < 3) {
+      // Region before does not contain at least 3 characters
+      if (len > 3) {
+        r1 = 3;
+        // Now R1 contains at least 3 characters
+      }
+      else {
+        // It is not possible to make the region before long enough
+        r1 = len;
       }
     }
-    // Or is the null region at the end of the word if there is no such non-vowel.
-
-    // R1 is adjusted such that the region before it contains at least 3 characters
-    if (r1 != len) {
-      // R1 is not null
-      if (r1 < 3) {
-        // Region before does not contain at least 3 characters
-        if (len > 3) {
-          r1 = 3;
-          // Now R1 contains at least 3 characters
-        }
-        else {
-          // It is not possible to make the region before long enough
-          r1 = len;
-        }
-      }
-    }
-
-    // R2 is the region after the first non-vowel following a vowel in R1
-    for (i = r1; i < len - 1 && r2 == len; i++) {
-      if (isVowel(token[i]) && !isVowel(token[i + 1])) {
-        r2 = i + 2;
-      }
-    }
-    // Or is the null region at the end of the word if there is no such non-vowel.
-
-    if (DEBUG) {
-      console.log("Regions r1 = " + r1 + " r2 = " + r2);
-    }
-
-    this.r1 = r1;
-    this.r2 = r2;
   }
 
-
-  prelude(word) {
-    var result = this.replaceAccentedCharacters(word);
-    result = this.handleYI(result);
-    this.markRegions(result);
-    if (DEBUG) {
-      console.log("Prelude: " + result);
+  // R2 is the region after the first non-vowel following a vowel in R1
+  for (i = r1; i < len - 1 && r2 == len; i++) {
+    if (isVowel(token[i]) && !isVowel(token[i + 1])) {
+      r2 = i + 2;
     }
-    return result;
   }
+  // Or is the null region at the end of the word if there is no such non-vowel.
 
+
+  this.r1 = r1;
+  this.r2 = r2;
+}
+
+
+prelude(word) {
+  this.markRegions(word);
+  return word;
+}
+
+
+// (1b) en   ene => delete if in R1 and preceded by a valid en-ending, and then undouble the ending
+// Define a valid en-ending as a non-vowel, and not gem.
+// Define undoubling the ending as removing the last letter if the word ends kk, dd or tt.
+step1b(word, suffixes) {
+  var result = word;
   
-  // (1b) en   ene => delete if in R1 and preceded by a valid en-ending, and then undouble the ending
-  // Define a valid en-ending as a non-vowel, and not gem.
-  // Define undoubling the ending as removing the last letter if the word ends kk, dd or tt.
-  step1b(word, suffixes) {
-    var result = word;
-    
-    var match = result.endsinArr(suffixes);
-    if (match != "") {
-      var pos = result.length - match.length;
-      if (pos >= this.r1) {
-        // check the character before the matched en/ene AND check for gem
-        if (!isVowel(result[pos - 1]) && result.substr(pos - 3, 3) !== "gem") {
-          // delete
-          result = result.removeSuffix(match.length);
-          // Undouble the ending
-          result = result.undoubleEnding();
-        }
-      }
-    }
-    if (DEBUG) {
-      console.log("step 1b: " + result);
-    }
-    return result;
-  }
-
-  
-  step1(word) {
-    var result = word;
-    // (1a) heden => replace with heid if in R1
-    if (result.endsin("heden") && result.length - 5 >= this.r1) {
-      result = result.removeSuffix(5);
-      result += "heid";
-    }
-    if (DEBUG) {
-      console.log("step 1a: " + result);
-    }
-
-    result = this.step1b(result, ["en", "ene"]);
-
-    // (1c) s   se => delete if in R1 and preceded by a valid s-ending
-    // Define a valid s-ending as a non-vowel other than j.
-    var match = result.endsinArr(["se", "s"]);
-    if (match != "") {
-      var pos = result.length - match.length;
-      if (pos >= this.r1) {
-        // check the character before the matched s/se
-        // HtD: if there is a s before the s/se the suffix should stay
-        //if (!isVowel(result[pos - 1]) && result[pos - 1] != "j") {
-        if (!isVowel(result[pos - 1]) && !result.match(/[js]se?$/)) {
-          result = result.removeSuffix(match.length);
-        }
-      }  
-    }
-    if (DEBUG) {
-      console.log("step 1c: " + result);
-    }
-    return result;
-  }
-
-
-  // Delete suffix e if in R1 and preceded by a non-vowel, and then undouble the ending
-  step2(word) {
-    var result = word;
-    if (result.endsin("e") && this.r1 < result.length) {
-      if (result.length > 1 && !isVowel(result[result.length - 2])) {
-        // Delete
-        result = result.removeSuffix(1);
-        this.suffixeRemoved = true;
+  var match = endsinArr(result, suffixes);
+  if (match != "") {
+    var pos = result.length - match.length;
+    if (pos >= this.r1) {
+      // check the character before the matched en/ene AND check for gem
+      if (!isVowel(result[pos - 1]) && result.substr(pos - 3, 3) !== "gem") {
+        // delete
+        result = removeSuffix(result, match.length);
         // Undouble the ending
-        result = result.undoubleEnding();
+        result = undoubleEnding(result);
       }
     }
-
-
-    if (DEBUG) {
-      console.log("step2: " + result);
-    }
-    return result;
   }
 
+  return result;
+}
 
-  // Step 3a: heid => delete heid if in R2 and not preceded by c, and treat a preceding en as in step 1(b)
-  step3a(word) {
-    var result = word;
-    if (result.endsin("heid") && result.length - 4 >= this.r2 && result[result.length - 5] != "c") {
+
+step1(word) {
+  var result = word;
+  // (1a) heden => replace with heid if in R1
+  if (endsin(result, "heden") && result.length - 5 >= this.r1) {
+    result = removeSuffix(result, 5);
+    result += "heid";
+  }
+
+  result = this.step1b(result, ["en", "ene"]);
+
+  // (1c) s   se => delete if in R1 and preceded by a valid s-ending
+  // Define a valid s-ending as a non-vowel other than j.
+  var match = endsinArr(result, ["se", "s"]);
+  if (match != "") {
+    var pos = result.length - match.length;
+    if (pos >= this.r1) {
+      // check the character before the matched s/se
+      // HtD: if there is a s before the s/se the suffix should stay
+      //if (!isVowel(result[pos - 1]) && result[pos - 1] != "j") {
+      if (!isVowel(result[pos - 1]) && !result.match(/[js]se?$/)) {
+        result = removeSuffix(result, match.length);
+      }
+    }  
+  }
+
+  return result;
+}
+
+
+// Delete suffix e if in R1 and preceded by a non-vowel, and then undouble the ending
+step2(word) {
+  var result = word;
+  if (endsin(result, "e") && this.r1 < result.length) {
+    if (result.length > 1 && !isVowel(result[result.length - 2])) {
       // Delete
-      result = result.removeSuffix(4);
-      // Treat a preceding en as in step 1b
-      result = this.step1b(result, ["en"]);
+      result = removeSuffix(result, 1);
+      this.suffixeRemoved = true;
+      // Undouble the ending
+      result = undoubleEnding(result);
     }
-    if (DEBUG) {
-      console.log("step 3a: " + result);
-    }
-    return result;
   }
 
-  
-  // d suffixes: Search for the longest among the following suffixes, and perform the action indicated.
-  step3b(word) {
-    var result = word;
+  return result;
+}
 
-    // end   ing => delete if in R2; if preceded by ig, delete if in R2 and not preceded by e, otherwise undouble the ending
-    var suf = "";
-    if (suf = result.endsinArr(["end", "ing"])) {
-      if ((result.length - 3) >= this.r2) {
+
+// Step 3a: heid => delete heid if in R2 and not preceded by c, and treat a preceding en as in step 1(b)
+step3a(word) {
+  var result = word;
+  if (endsin(result, "heid") && result.length - 4 >= this.r2 && result[result.length - 5] != "c") {
+    // Delete
+    result = removeSuffix(result, 4);
+    // Treat a preceding en as in step 1b
+    result = this.step1b(result, ["en"]);
+  }
+
+  return result;
+}
+
+
+// d suffixes: Search for the longest among the following suffixes, and perform the action indicated.
+step3b(word) {
+  var result = word;
+
+  // end   ing => delete if in R2; if preceded by ig, delete if in R2 and not preceded by e, otherwise undouble the ending
+  var suf = "";
+  if (suf = endsinArr(result, ["end", "ing"])) {
+    if ((result.length - 3) >= this.r2) {
+      // Delete suffix
+      result = removeSuffix(result, 3);
+      //this.regions(result);
+      if (endsin(result, "ig") && (result.length - 2 >= this.r2) && result[result.length - 3] != "e") {
         // Delete suffix
-        result = result.removeSuffix(3);
-        //this.regions(result);
-        if (result.endsin("ig") && (result.length - 2 >= this.r2) && result[result.length - 3] != "e") {
-          // Delete suffix
-          result = result.removeSuffix(2);
-        }
-        else {
-          result = result.undoubleEnding();
-        }
+        result = removeSuffix(result, 2);
+      }
+      else {
+        result = undoubleEnding(result);
       }
     }
+  }
+    
+  // ig => delete if in R2 and not preceded by e
+  if (endsin(result, "ig") && this.r2 <= result.length - 2 && result[result.length - 3] != "e") {
+    result = removeSuffix(result, 2);
+  }
       
-    // ig => delete if in R2 and not preceded by e
-    if (result.endsin("ig") && this.r2 <= result.length - 2 && result[result.length - 3] != "e") {
-      result = result.removeSuffix(2);
-    }
-        
-    // lijk => delete if in R2, and then repeat step 2
-    if (result.endsin("lijk") && this.r2 <= result.length - 4) {
-      result = result.removeSuffix(4);
-      // repeat step 2
-      result = this.step2(result);
-    }
-
-    // baar => delete if in R2
-    if (result.endsin("baar") && this.r2 <= result.length - 4) {
-      result = result.removeSuffix(4);
-    }    
-
-    // bar => delete if in R2 and if step 2 actually removed an e
-    if (result.endsin("bar") && this.r2 <= result.length - 3 && this.suffixeRemoved) {
-      result = result.removeSuffix(3);
-    }    
-    
-    if (DEBUG) {
-      console.log("step 3b: " + result);
-    }
-    return result;
+  // lijk => delete if in R2, and then repeat step 2
+  if (endsin(result, "lijk") && this.r2 <= result.length - 4) {
+    result = removeSuffix(result, 4);
+    // repeat step 2
+    result = this.step2(result);
   }
 
+  // baar => delete if in R2
+  if (endsin(result, "baar") && this.r2 <= result.length - 4) {
+    result = removeSuffix(result, 4);
+  }    
+
+  // bar => delete if in R2 and if step 2 actually removed an e
+  if (endsin(result, "bar") && this.r2 <= result.length - 3 && this.suffixeRemoved) {
+    result = removeSuffix(result, 3);
+  }    
   
-  // undouble vowel => If the words ends CVD, where C is a non-vowel,
-  // D is a non-vowel other than I, and V is double a, e, o or u,
-  // remove one of the vowels from V (for example, maan -> man, brood -> brod)
-  step4(word) {
-    var result = word;
-    
-    if (result.match(/[bcdfghjklmnpqrstvwxz](aa|ee|oo|uu)[bcdfghjklmnpqrstvwxz]$/)) {
-      result = result.substr(0, result.length - 2) + result[result.length - 1];
-    }
-    
-    if (DEBUG) {
-      console.log("step4: " + result);
-    }
-    return result;
-  }
+  return result;
+}
 
-  // Turn I and Y back into lower case.
-  postlude(word) {
-    return word.toLowerCase();
-  }
 
-  stem(word) {
-    return this.postlude(this.step4(this.step3b(this.step3a(this.step2(this.step1(this.prelude(word)))))));
+// undouble vowel => If the words ends CVD, where C is a non-vowel,
+// D is a non-vowel other than I, and V is double a, e, o or u,
+// remove one of the vowels from V (for example, maan -> man, brood -> brod)
+step4(word) {
+  var result = word;
+  
+  if (result.match(/[bcdfghjklmnpqrstvwxz](aa|ee|oo|uu)[bcdfghjklmnpqrstvwxz]$/)) {
+    result = result.substr(0, result.length - 2) + result[result.length - 1];
   }
+  
+  return result;
+}
+
+stem(word) {
+  return this.step4(this.step3b(this.step3a(this.step2(this.step1(this.prelude(word))))));
+}
 }
 
 
