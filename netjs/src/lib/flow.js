@@ -117,6 +117,12 @@ class WaitAction extends Action {
 
 		instance.eventKey = data.outputKey;
 		instance.eventTypes = data.types;
+
+		if (data.timeout) {
+			const now = new Date();
+			instance.eventDeadline = new Date(now.getTime() + data.timeout);
+		}
+
 		return data;
 	}
 }
@@ -583,6 +589,12 @@ class Instance {
 		return new Error((message || "Error") + " in flow " + this.graph.code + " at step " + this.activeNode.label + " at element " + this.actionIndex + ": " + e.toString());
 	}
 
+	clearEvent () {
+		delete this.eventTypes;
+		delete this.eventKey;
+		delete this.eventDeadline;
+	}
+
 	async continue (data) {
 		if (!this.running) return;
 
@@ -596,11 +608,11 @@ class Instance {
 		if ("eventKey" in this) {
 			if ("eventTypes" in this) {
 				if (!("type" in data && this.eventTypes.some(type => data.type == type))) return {};
-				delete this.eventTypes;
 			}
 
 			this.state[this.eventKey] = data;
-			delete this.eventKey;
+
+			this.clearEvent();
 		} else {
 			for (const key in data) {
 				this.state[key] = data[key];
@@ -693,6 +705,18 @@ class Instance {
 			code: this.graph.code,
 			trace: this.trace
 		};
+	}
+
+	async checkDeadline (now) {
+		if (this.eventDeadline && this.eventDeadline <= now) {
+			this.state[this.eventKey] = {
+				type: "timeout"
+			};
+
+			this.clearEvent();
+
+			return await this.continue({});
+		}
 	}
 }
 
