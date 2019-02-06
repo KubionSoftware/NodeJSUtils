@@ -115,12 +115,12 @@ class WaitAction extends Action {
 	async execute (instance, requestData) {
 		const data = parseData(this.data, instance.state, instance.config);
 
-		instance.eventKey = data.outputKey;
-		instance.eventTypes = data.types;
+		instance.state._eventKey = data.outputKey;
+		instance.state._eventTypes = data.types;
 
 		if (data.timeout) {
 			const now = new Date();
-			instance.eventDeadline = new Date(now.getTime() + data.timeout);
+			instance.state._eventDeadline = new Date(now.getTime() + data.timeout);
 		}
 
 		return data;
@@ -572,6 +572,7 @@ class Instance {
 		this.takeSnapshots = takeSnapshots;
 		this.snapshots = [];
 		this.trace = [graph.startNode];
+		this.lastResult = undefined;
 	}
 
 	async start (data) {
@@ -591,9 +592,9 @@ class Instance {
 	}
 
 	clearEvent () {
-		delete this.eventTypes;
-		delete this.eventKey;
-		delete this.eventDeadline;
+		delete this.state._eventTypes;
+		delete this.state._eventKey;
+		delete this.state._eventDeadline;
 	}
 
 	async continue (data) {
@@ -606,12 +607,12 @@ class Instance {
 			if (childResult) return childResult;
 		}
 
-		if ("eventKey" in this) {
-			if ("eventTypes" in this) {
-				if (!("type" in data && this.eventTypes.some(type => data.type == type))) return {};
+		if ("_eventKey" in this.state) {
+			if ("_eventTypes" in this.state) {
+				if (!("type" in data && this.state._eventTypes.some(type => data.type == type))) return {};
 			}
 
-			this.state[this.eventKey] = data;
+			this.state[this.state._eventKey] = data;
 
 			this.clearEvent();
 		} else {
@@ -649,6 +650,7 @@ class Instance {
                     }
 
 					if (actionResult || !this.running) {
+						this.lastResult = actionResult;
 						return actionResult;
 					}
 				} catch (e) {
@@ -670,6 +672,7 @@ class Instance {
 			actionIndex: this.actionIndex,
 			state: Obj.clone(this.state),
 			data: data,
+			lastResult: Obj.clone(this.lastResult),
 			running: this.running
 		});
 	}
@@ -709,8 +712,8 @@ class Instance {
 	}
 
 	async checkDeadline (now) {
-		if (this.eventDeadline && this.eventDeadline <= now) {
-			this.state[this.eventKey] = {
+		if (this.state._eventDeadline && this.state._eventDeadline <= now) {
+			this.state[this.state._eventKey] = {
 				type: "timeout"
 			};
 
@@ -718,6 +721,12 @@ class Instance {
 
 			return await this.continue({});
 		}
+	}
+
+	getLastResult () {
+		if (this.childFlow) return this.childFlow.getLastResult();
+
+		return this.lastResult;
 	}
 }
 
