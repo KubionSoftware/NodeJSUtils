@@ -437,15 +437,13 @@ class Graph {
 			}
 
 			// Convert flow state & config to object
-			let flows = node.actions.filter(a => a.type == "flow" && (Array.isArray(a.data.state) || Array.isArray(a.data.config)));
+			let flows = node.actions.filter(a => a.type == "flow");
 			for (let flow of flows) {
-				if (Array.isArray(flow.data.state)) {
-					flow.data.stateObj = reduceKeyValue(flow.data.state);
-					delete flow.data.state;
+				if (Array.isArray(flow.data.stateObj)) {
+					flow.data.stateObj = reduceKeyValue(flow.data.stateObj);
 				}
-				if (Array.isArray(flow.data.config)) {
-					flow.data.configObj = reduceKeyValue(flow.data.config);
-					delete flow.data.config;
+				if (Array.isArray(flow.data.configObj)) {
+					flow.data.configObj = reduceKeyValue(flow.data.configObj);
 				}
 			}
 
