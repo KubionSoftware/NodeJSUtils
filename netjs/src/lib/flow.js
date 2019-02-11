@@ -716,8 +716,15 @@ class Instance {
 
 			this.clearEvent();
 
-			return await this.continue({});
+			return {
+				timeout: true,
+				result: await this.continue({})
+			};
 		}
+
+		return {
+			timeout: false
+		};
 	}
 }
 
