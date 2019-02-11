@@ -115,12 +115,12 @@ class WaitAction extends Action {
 	async execute (instance, requestData) {
 		const data = parseData(this.data, instance.state, instance.config);
 
-		instance.eventKey = data.outputKey;
-		instance.eventTypes = data.types;
+		instance.state._eventKey = data.outputKey;
+		instance.state._eventTypes = data.types;
 
 		if (data.timeout) {
 			const now = new Date();
-			instance.eventDeadline = new Date(now.getTime() + data.timeout);
+			instance.state._eventDeadline = new Date(now.getTime() + data.timeout);
 		}
 
 		return data;
@@ -437,15 +437,13 @@ class Graph {
 			}
 
 			// Convert flow state & config to object
-			let flows = node.actions.filter(a => a.type == "flow" && (Array.isArray(a.data.state) || Array.isArray(a.data.config)));
+			let flows = node.actions.filter(a => a.type == "flow");
 			for (let flow of flows) {
-				if (Array.isArray(flow.data.state)) {
-					flow.data.stateObj = reduceKeyValue(flow.data.state);
-					delete flow.data.state;
+				if (Array.isArray(flow.data.stateObj)) {
+					flow.data.stateObj = reduceKeyValue(flow.data.stateObj);
 				}
-				if (Array.isArray(flow.data.config)) {
-					flow.data.configObj = reduceKeyValue(flow.data.config);
-					delete flow.data.config;
+				if (Array.isArray(flow.data.configObj)) {
+					flow.data.configObj = reduceKeyValue(flow.data.configObj);
 				}
 			}
 
@@ -572,6 +570,7 @@ class Instance {
 		this.takeSnapshots = takeSnapshots;
 		this.snapshots = [];
 		this.trace = [graph.startNode];
+		this.lastResult = undefined;
 	}
 
 	async start (data) {
@@ -591,27 +590,29 @@ class Instance {
 	}
 
 	clearEvent () {
-		delete this.eventTypes;
-		delete this.eventKey;
-		delete this.eventDeadline;
+		delete this.state._eventTypes;
+		delete this.state._eventKey;
+		delete this.state._eventDeadline;
 	}
 
 	async continue (data) {
 		if (!this.running) return;
 
-		if (this.takeSnapshots) this.createSnapshot(data);
+		if (this.takeSnapshots) {
+			this.snapshots.push(this.createSnapshot(data));
+		}
 
 		if (this.childFlow) {
 			const childResult = await this.childFlow.continue(data);
 			if (childResult) return childResult;
 		}
 
-		if ("eventKey" in this) {
-			if ("eventTypes" in this) {
-				if (!("type" in data && this.eventTypes.some(type => data.type == type))) return {};
+		if ("_eventKey" in this.state) {
+			if ("_eventTypes" in this.state) {
+				if (!("type" in data && this.state._eventTypes.some(type => data.type == type))) return {};
 			}
 
-			this.state[this.eventKey] = data;
+			this.state[this.state._eventKey] = data;
 
 			this.clearEvent();
 		} else {
@@ -649,6 +650,7 @@ class Instance {
                     }
 
 					if (actionResult || !this.running) {
+						this.lastResult = actionResult;
 						return actionResult;
 					}
 				} catch (e) {
@@ -665,13 +667,14 @@ class Instance {
 	}
 
 	createSnapshot (data) {
-		this.snapshots.push({
+		return {
 			nodeId: this.activeNode.id,
 			actionIndex: this.actionIndex,
 			state: Obj.clone(this.state),
 			data: data,
+			lastResult: Obj.clone(this.lastResult),
 			running: this.running
-		});
+		};
 	}
 
 	goto (nodeId) {
@@ -688,13 +691,16 @@ class Instance {
 		if (this.snapshots.length < 2) return;
 
 		const snapshot = this.snapshots.splice(-2, 2)[0];
+		this.restoreSnapshot(snapshot);
 
+		return await this.continue(snapshot.data);
+	}
+
+	restoreSnapshot (snapshot) {
 		this.activeNode = this.graph.getNodeById(snapshot.nodeId);
 		this.actionIndex = snapshot.actionIndex;
 		this.state = snapshot.state;
 		this.running = snapshot.running;
-
-		return await this.continue(snapshot.data);
 	}
 
 	getDebug () {
@@ -709,8 +715,8 @@ class Instance {
 	}
 
 	async checkDeadline (now) {
-		if (this.eventDeadline && this.eventDeadline <= now) {
-			this.state[this.eventKey] = {
+		if (this.state._eventDeadline && this.state._eventDeadline <= now) {
+			this.state[this.state._eventKey] = {
 				type: "timeout"
 			};
 
@@ -725,6 +731,12 @@ class Instance {
 		return {
 			timeout: false
 		};
+	}
+
+	getLastResult () {
+		if (this.childFlow) return this.childFlow.getLastResult();
+
+		return this.lastResult;
 	}
 }
 
