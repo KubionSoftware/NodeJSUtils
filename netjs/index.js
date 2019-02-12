@@ -1,5 +1,6 @@
 const Flow = require("./src/lib/flow.js");
 const FormData = require("./src/lib/form_data.js");
+const Gzip = require("./src/lib/gzip.js");
 const NLP = require("./src/lib/nlp.js");
 const Random = require("./src/lib/random.js");
 const Router = require("./src/lib/router.js");
@@ -18,6 +19,7 @@ const XDoc = require("./src/netjs/xdoc.js");
 module.exports = {
 	Flow,
 	FormData,
+	Gzip,
 	NLP,
 	Random,
 	Router,
