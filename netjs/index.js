@@ -5,7 +5,6 @@ const NLP = require("./src/lib/nlp.js");
 const Random = require("./src/lib/random.js");
 const Router = require("./src/lib/router.js");
 const Stemmer = require("./src/lib/stemmer.js");
-const Text = require("./src/lib/text.js");
 
 const Base64 = require("./src/netjs/base64.js");
 const HTTP = require("./src/netjs/http.js");
@@ -24,7 +23,6 @@ module.exports = {
 	Random,
 	Router,
 	Stemmer,
-	Text,
 
 	Base64,
 	HTTP,

@@ -154,6 +154,10 @@ class Obj {
     static defined (value) {
         return typeof value != "undefined";
     }
+
+    static definedOr (value, defaultValue) {
+        return Obj.defined(value) ? value : defaultValue;
+    }
 }
 
 module.exports = Obj;
