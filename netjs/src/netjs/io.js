@@ -109,6 +109,30 @@ class IO {
 			});
 		});
 	}
+
+	static deleteFile (file) {
+		return new Promise((resolve, reject) => {
+			fs.unlink(file, error => {
+				if (error) {
+					reject(error);
+				} else {
+					resolve();
+				}
+			});
+		});
+	}
+
+	static deleteDirectory (directory) {
+		return new Promise((resolve, reject) => {
+			fs.rmdir(directory, error => {
+				if (error) {
+					reject(error);
+				} else {
+					resolve();
+				}
+			});
+		});
+	}
 }
 
 module.exports = IO;
