@@ -15,6 +15,12 @@ class Text {
         return html;
     }
 
+    static encodeEntities (str) {
+        return str.replace(/[\u00A0-\u9999<>\&]/gim, function(i) {
+            return '&#'+i.charCodeAt(0)+';';
+        });
+    }
+
     static decodeEntities (encodedString) {
         var translate_re = /&(nbsp|amp|quot|lt|gt);/g;
         var translate = {

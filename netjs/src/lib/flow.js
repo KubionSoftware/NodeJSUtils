@@ -666,15 +666,29 @@ class Instance {
 		await this.continue(data);
 	}
 
-	createSnapshot (data) {
-		return {
+	createSnapshot (data, includeHistory) {
+		const snapshot = {
 			nodeId: this.activeNode.id,
 			actionIndex: this.actionIndex,
 			state: Obj.clone(this.state),
 			data: data,
 			lastResult: Obj.clone(this.lastResult),
-			running: this.running
+			running: this.running,
+			trace: this.trace.slice(),
+			lastResult: Obj.clone(this.lastResult)
 		};
+
+		if (includeHistory) {
+			snapshot.origin = this.snapshots[0];
+			snapshot.changes = [];
+			
+			for (let i = 1; i < this.snapshots.length; i++) {
+				const changes = Obj.findChanges(this.snapshots[i], this.snapshots[i - 1]);
+				snapshot.changes.push(changes);
+			}
+		}
+
+		return snapshot;
 	}
 
 	goto (nodeId) {
@@ -701,6 +715,24 @@ class Instance {
 		this.actionIndex = snapshot.actionIndex;
 		this.state = snapshot.state;
 		this.running = snapshot.running;
+		this.trace = snapshot.trace;
+		this.lastResult = snapshot.lastResult;
+
+		if (snapshot.origin) {
+			this.snapshots = [snapshot.origin];
+
+			for (const changes of snapshot.changes) {
+				let newSnapshot = Obj.clone(this.snapshots[this.snapshots.length - 1]);
+
+				for (const change of changes) {
+					Obj.deepSet(newSnapshot, change.key.split("."), change.newValue, change.oldValue);
+				}
+
+				newSnapshot = Obj.filterUndefined(newSnapshot);
+
+				this.snapshots.push(newSnapshot);
+			}
+		}
 	}
 
 	getDebug () {

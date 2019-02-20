@@ -1,10 +1,10 @@
 const Flow = require("./src/lib/flow.js");
 const FormData = require("./src/lib/form_data.js");
+const Gzip = require("./src/lib/gzip.js");
 const NLP = require("./src/lib/nlp.js");
 const Random = require("./src/lib/random.js");
 const Router = require("./src/lib/router.js");
 const Stemmer = require("./src/lib/stemmer.js");
-const Text = require("./src/lib/text.js");
 
 const Base64 = require("./src/netjs/base64.js");
 const HTTP = require("./src/netjs/http.js");
@@ -18,11 +18,11 @@ const XDoc = require("./src/netjs/xdoc.js");
 module.exports = {
 	Flow,
 	FormData,
+	Gzip,
 	NLP,
 	Random,
 	Router,
 	Stemmer,
-	Text,
 
 	Base64,
 	HTTP,
