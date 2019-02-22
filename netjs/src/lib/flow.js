@@ -758,6 +758,18 @@ class Instance {
 				timeout: true,
 				result: await this.continue({})
 			};
+		} else if (this.state._deadline && this.state._deadline <= now) {
+			delete this.state._deadline;
+			
+			if (this.state._deadlineNodeId) {
+				this.goto(this.state._deadlineNodeId);
+				delete this.state._deadlineNodeId;
+
+				return {
+					timeout: true,
+					result: await this.continue({})
+				};
+			}
 		}
 
 		return {
