@@ -349,12 +349,12 @@ class FlowAction extends Action {
 
 	async execute (instance, requestData) {
 		const data = parseData(this.data, instance.state, instance.config);
-		const flow = await instance.environment.getFlow(data.name);
+		const flow = await instance.environment.getFlow(data.name, instance);
 		
 		instance.childFlow = new Instance(flow, instance.environment, data.stateObj || data.state, data.configObj || data.config, (childInstance, returnData) => {
 			if (data.outputKey) instance.state[data.outputKey] = returnData;
 			delete instance.childFlow;
-		});
+		}, false);
 
 		return await instance.childFlow.start({});
 	}
@@ -598,9 +598,7 @@ class Instance {
 	async continue (data) {
 		if (!this.running) return;
 
-		if (this.takeSnapshots) {
-			this.snapshots.push(this.createSnapshot(data));
-		}
+		if (this.takeSnapshots) this.snapshots.push(this.createSnapshot(data));
 
 		if (this.childFlow) {
 			const childResult = await this.childFlow.continue(data);
@@ -666,6 +664,16 @@ class Instance {
 		await this.continue(data);
 	}
 
+	goto (nodeId) {
+		this.activeNode = this.graph.getNodeById(nodeId);
+		this.actionIndex = 0;
+		this.trace.push(nodeId);
+	}
+
+	set (key, value) {
+		this.state[key] = value;
+	}
+
 	createSnapshot (data, includeHistory) {
 		const snapshot = {
 			nodeId: this.activeNode.id,
@@ -678,6 +686,11 @@ class Instance {
 			lastResult: Obj.clone(this.lastResult)
 		};
 
+		if (this.childFlow) {
+			snapshot.childFlowCode = this.childFlow.graph.code;
+			snapshot.childFlowSnapshot = this.childFlow.createSnapshot(data, false);
+		}
+
 		if (includeHistory) {
 			snapshot.origin = this.snapshots[0];
 			snapshot.changes = [];
@@ -689,35 +702,18 @@ class Instance {
 		}
 
 		return snapshot;
-	}
-
-	goto (nodeId) {
-		this.activeNode = this.graph.getNodeById(nodeId);
-		this.actionIndex = 0;
-		this.trace.push(nodeId);
-	}
-
-	set (key, value) {
-		this.state[key] = value;
-	}
+	}	
 
 	async back () {
 		if (this.snapshots.length < 2) return;
 
 		const snapshot = this.snapshots.splice(-2, 2)[0];
-		this.restoreSnapshot(snapshot);
+		await this.restoreSnapshot(snapshot);
 
 		return await this.continue(snapshot.data);
 	}
 
-	restoreSnapshot (snapshot) {
-		this.activeNode = this.graph.getNodeById(snapshot.nodeId);
-		this.actionIndex = snapshot.actionIndex;
-		this.state = snapshot.state;
-		this.running = snapshot.running;
-		this.trace = snapshot.trace;
-		this.lastResult = snapshot.lastResult;
-
+	async restoreSnapshot (snapshot) {
 		if (snapshot.origin) {
 			this.snapshots = [snapshot.origin];
 
@@ -733,6 +729,43 @@ class Instance {
 				this.snapshots.push(newSnapshot);
 			}
 		}
+
+		if (snapshot.childFlowCode) {
+			if (!this.childFlow) {
+				const childSnapshots = [];
+				let beforeChild = undefined;
+				for (let i = this.snapshots.length - 1; i >= 0; i--) {
+					const snap = this.snapshots[i];
+					if (snap.childFlowCode == snapshot.childFlowCode) childSnapshots.push(snap);
+					else {
+						beforeChild = snap;
+						break;
+					}
+				}
+				childSnapshots.reverse();
+
+				if (!beforeChild) throw new Error("Could't find shapshot before child flow: " + snapshot.childFlowCode);
+
+				await this.restoreSnapshot(beforeChild);
+
+				this.takeSnapshots = false;
+				await this.continue(beforeChild.data);
+				this.takeSnapshots = true;
+
+				if (this.childFlow) this.childFlow.snapshots.push(...childSnapshots.map(snap => snap.childFlowSnapshot));
+			}
+
+			await this.childFlow.restoreSnapshot(snapshot.childFlowSnapshot);
+		} else if (!snapshot.childFlowCode && this.childFlow) {
+			delete this.childFlow;
+		}
+
+		this.activeNode = this.graph.getNodeById(snapshot.nodeId);
+		this.actionIndex = snapshot.actionIndex;
+		this.state = snapshot.state;
+		this.running = snapshot.running;
+		this.trace = snapshot.trace;
+		this.lastResult = snapshot.lastResult;
 	}
 
 	getDebug () {
