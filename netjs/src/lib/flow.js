@@ -768,15 +768,19 @@ class Instance {
 		this.lastResult = snapshot.lastResult;
 	}
 
-	getDebug () {
-		if (this.childFlow) return this.childFlow.getDebug();
+	getDebug (debug) {
+		if (!debug) debug = [];
 
-		return {
+		debug.push({
 			state: this.state,
 			activeNode: this.activeNode,
 			code: this.graph.code,
 			trace: this.trace
-		};
+		});
+
+		if (this.childFlow) return this.childFlow.getDebug(debug);
+
+		return debug;
 	}
 
 	async checkDeadline (now) {
