@@ -798,11 +798,17 @@ class Instance {
 				this.goto(this.state._deadlineNodeId);
 				delete this.state._deadlineNodeId;
 
+				if (this.childFlow) delete this.childFlow;
+
 				return {
 					timeout: true,
 					result: await this.continue({})
 				};
 			}
+		}
+
+		if (this.childFlow) {
+			return await this.childFlow.checkDeadline(now);
 		}
 
 		return {
