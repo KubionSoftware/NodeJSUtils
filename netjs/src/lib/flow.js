@@ -356,6 +356,8 @@ class FlowAction extends Action {
 			delete instance.childFlow;
 		}, false);
 
+		instance.childFlow.parentFlow = instance;
+
 		return await instance.childFlow.start({});
 	}
 }
@@ -373,32 +375,18 @@ class EndAction extends Action {
 	}
 }
 
-const actionMap = {
-	"transition": TransitionAction,
-	"form": FormAction,
-	"end": EndAction,
-	"load": LoadAction,
-	"exec": ExecAction,
-	"set": SetAction,
-	"wait": WaitAction,
-	"save": SaveAction,
-	"log": LogAction,
-	"flow": FlowAction,
-	"table": TableAction
-};
-
 class Node {
 
-	constructor (data) {
+	constructor (data, environment) {
 		this.id = data.id;
 		this.label = data.label;
 
 		this.actions = [];
 		for (const action of data.actions) {
-			if (!(action.type in actionMap)) {
+			if (!(action.type in environment.actionMap)) {
 				Log.write("Unknown action type " + action.type + " in flow");
 			} else {
-				this.actions.push(new (actionMap[action.type])(action.data, action.condition));
+				this.actions.push(new (environment.actionMap[action.type])(action.data, action.condition));
 			}
 		}
 	}
@@ -416,7 +404,7 @@ const templates = {
 
 class Graph {
 
-	constructor (data, code) {
+	constructor (data, code, environment) {
 		const reduceKeyValue = function (array) {
 			const obj = array.reduce((a, v) => {
 				if (typeof v.value != "undefined") a[v.key] = v.value;
@@ -472,7 +460,7 @@ class Graph {
 			}
 		}
 		
-		this.nodes = data.nodes.map(nodeData => new Node(nodeData));
+		this.nodes = data.nodes.map(nodeData => new Node(nodeData, environment));
 		this.startNode = data.startNode;
 		this.code = code || "";
 	}
@@ -490,6 +478,20 @@ class Environment {
 
 		this.flows = {};
 		this.tables = {};
+
+		this.actionMap = {
+			"transition": TransitionAction,
+			"form": FormAction,
+			"end": EndAction,
+			"load": LoadAction,
+			"exec": ExecAction,
+			"set": SetAction,
+			"wait": WaitAction,
+			"save": SaveAction,
+			"log": LogAction,
+			"flow": FlowAction,
+			"table": TableAction
+		};
 	}
 
 	setSource (name, source) {
@@ -526,6 +528,10 @@ class Environment {
 		} else {
 			return this.tables[name];
 		}
+	}
+
+	setAction (key, action) {
+		this.actionMap[key] = action;
 	}
 }
 
@@ -827,4 +833,4 @@ class Instance {
 	}
 }
 
-module.exports = {Graph, Instance, Environment, HttpSource, Source};
+module.exports = {Graph, Instance, Environment, HttpSource, Source, Action, parseData};
