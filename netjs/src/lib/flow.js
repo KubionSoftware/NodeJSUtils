@@ -1,5 +1,6 @@
 const HTTP = require("../netjs/http.js");
 const Log = require("../netjs/log.js");
+const Random = require("./random.js");
 const {Obj} = require("kubion-netjs-utils");
 
 class Source {
@@ -118,11 +119,6 @@ class WaitAction extends Action {
 		instance.state._eventKey = data.outputKey;
 		instance.state._eventTypes = data.types;
 
-		if (data.timeout) {
-			const now = new Date();
-			instance.state._eventDeadline = new Date(now.getTime() + data.timeout);
-		}
-
 		return data;
 	}
 }
@@ -183,6 +179,7 @@ class LoadAction extends Action {
 
 		const result = await instance.environment.getSource(data.source).load(data.query, instance.state);
 		instance.set(data.outputKey, result);
+
 		return false;
 	}
 }
@@ -390,8 +387,9 @@ const actionMap = {
 class Node {
 
 	constructor (data) {
-		this.id = data.id;
-		this.label = data.label;
+		for (const key in data) {
+			if (key != "actions") this[key] = data[key];
+		}
 
 		this.actions = [];
 		for (const action of data.actions) {
@@ -560,7 +558,8 @@ function parseData (data, state, config) {
 
 class Instance {
 
-	constructor (graph, environment, state = {}, config = {}, onEnd = undefined, takeSnapshots = true) {
+	constructor (graph, environment, state = {}, config = {}, onEnd = undefined, takeSnapshots = true, onNodeStart = undefined, onNodeEnd = undefined) {
+		this.id = Random.generateId(16);
 		this.graph = graph;
 		this.environment = environment;
         this.state = state || {};
@@ -571,11 +570,13 @@ class Instance {
 		this.snapshots = [];
 		this.trace = [graph.startNode];
 		this.lastResult = undefined;
+		this.onNodeStart = onNodeStart;
+		this.onNodeEnd = onNodeEnd;
 	}
 
 	async start (data) {
-		this.activeNode = this.graph.getNodeById(this.graph.startNode);
-		this.actionIndex = 0;
+		this.goto(this.graph.startNode);
+
 		this.running = true;
 		return await this.continue(data);
 	}
@@ -592,7 +593,6 @@ class Instance {
 	clearEvent () {
 		delete this.state._eventTypes;
 		delete this.state._eventKey;
-		delete this.state._eventDeadline;
 	}
 
 	async continue (data) {
@@ -665,9 +665,13 @@ class Instance {
 	}
 
 	goto (nodeId) {
+		if (this.activeNode && this.onNodeEnd) this.onNodeEnd(this, this.activeNode);
+
 		this.activeNode = this.graph.getNodeById(nodeId);
 		this.actionIndex = 0;
 		this.trace.push(nodeId);
+
+		if (this.onNodeStart) this.onNodeStart(this, this.activeNode);
 	}
 
 	set (key, value) {
@@ -676,6 +680,7 @@ class Instance {
 
 	createSnapshot (data, includeHistory) {
 		const snapshot = {
+			id: this.id,
 			nodeId: this.activeNode.id,
 			actionIndex: this.actionIndex,
 			state: Obj.clone(this.state),
@@ -760,6 +765,7 @@ class Instance {
 			delete this.childFlow;
 		}
 
+		this.id = snapshot.id;
 		this.activeNode = this.graph.getNodeById(snapshot.nodeId);
 		this.actionIndex = snapshot.actionIndex;
 		this.state = snapshot.state;
@@ -772,6 +778,7 @@ class Instance {
 		if (!debug) debug = [];
 
 		debug.push({
+			id: this.id,
 			state: this.state,
 			activeNode: this.activeNode,
 			code: this.graph.code,
@@ -781,43 +788,6 @@ class Instance {
 		if (this.childFlow) return this.childFlow.getDebug(debug);
 
 		return debug;
-	}
-
-	async checkDeadline (now) {
-		if (this.state._eventDeadline && this.state._eventDeadline <= now) {
-			this.state[this.state._eventKey] = {
-				type: "timeout"
-			};
-
-			this.clearEvent();
-
-			return {
-				timeout: true,
-				result: await this.continue({})
-			};
-		} else if (this.state._deadline && this.state._deadline <= now) {
-			delete this.state._deadline;
-			
-			if (this.state._deadlineNodeId) {
-				this.goto(this.state._deadlineNodeId);
-				delete this.state._deadlineNodeId;
-
-				if (this.childFlow) delete this.childFlow;
-
-				return {
-					timeout: true,
-					result: await this.continue({})
-				};
-			}
-		}
-
-		if (this.childFlow) {
-			return await this.childFlow.checkDeadline(now);
-		}
-
-		return {
-			timeout: false
-		};
 	}
 
 	getLastResult () {
