@@ -574,7 +574,7 @@ class Instance {
 		this.running = false;
 		this.takeSnapshots = takeSnapshots;
 		this.snapshots = [];
-		this.trace = [graph.startNode];
+		this.trace = [];
 		this.lastResult = undefined;
 		this.onNodeStart = onNodeStart;
 		this.onNodeEnd = onNodeEnd;
@@ -718,7 +718,22 @@ class Instance {
 		if (this.snapshots.length < 2) return;
 
 		const snapshot = this.snapshots.splice(-2, 2)[0];
+
+		if (this.onNodeEnd && this.activeNode && this.activeNode.id != snapshot.nodeId) {
+			this.onNodeEnd(this, this.activeNode);
+		}
+
+		// execute onNodeStart if back to startNode (goto function not called)
+		let toStartNode = false;
+		if (this.onNodeStart && this.activeNode && this.activeNode.id != snapshot.nodeId && snapshot.nodeId == this.graph.startNode) {
+			toStartNode = true;
+		}
+
 		await this.restoreSnapshot(snapshot);
+
+		if (toStartNode) {
+			this.onNodeStart(this, this.activeNode);
+		}
 
 		return await this.continue(snapshot.data);
 	}
