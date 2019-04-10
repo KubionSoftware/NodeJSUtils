@@ -693,8 +693,7 @@ class Instance {
 			data: data,
 			lastResult: Obj.clone(this.lastResult),
 			running: this.running,
-			trace: this.trace.slice(),
-			lastResult: Obj.clone(this.lastResult)
+			trace: this.trace.slice()
 		};
 
 		if (this.childFlow) {
